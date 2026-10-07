@@ -369,6 +369,12 @@ def decide(sensor, state, hp, heat):
     hp_pct = hp_ratio(normalized_hp, max_hp)
     visible = frames[-1]
 
+    def engage_action():
+        if enemy_dist <= 3:
+            return ("SHOOT", SentryState.ENGAGE)
+        action = "MOVE_RIGHT" if robot_type == "HERO" else "MOVE_LEFT"
+        return (action, SentryState.ENGAGE)
+
     # R1: Low health overrides every other rule.
     if hp_pct <= 30:
         return ("RETREAT", SentryState.RETREAT)
@@ -385,11 +391,7 @@ def decide(sensor, state, hp, heat):
 
     # R4: Engage a currently visible enemy.
     if state == SentryState.ENGAGE and visible:
-        if enemy_dist <= 3:
-            return ("SHOOT", SentryState.ENGAGE)
-        if robot_type == "HERO":
-            return ("MOVE_RIGHT", SentryState.ENGAGE)
-        return ("MOVE_LEFT", SentryState.ENGAGE)
+        return engage_action()
 
     # R5: Two trailing false frames mean sustained loss.
     if state == SentryState.ENGAGE:
@@ -404,11 +406,7 @@ def decide(sensor, state, hp, heat):
         if not confirmed:
             return ("SCAN", SentryState.SUSPECT)
 
-        if enemy_dist <= 3:
-            return ("SHOOT", SentryState.ENGAGE)
-        if robot_type == "HERO":
-            return ("MOVE_RIGHT", SentryState.ENGAGE)
-        return ("MOVE_LEFT", SentryState.ENGAGE)
+        return engage_action()
 
     # R7: Default behavior without a visible enemy.
     if state == SentryState.PATROL:
