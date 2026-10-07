@@ -329,9 +329,96 @@ class SentryState(Enum):
 
 
 def decide(sensor, state, hp, heat):
-    """TODO(Q5)：纯函数决策，返回 (action: str, new_state: SentryState)；
-    sensor 字段契约、R1-R7 规则表与非法输入处理见题面 Q5 规范。"""
-    raise NotImplementedError("Q5 decide：题面 Q5·决策规则表 R1-R7")
+    required = ("enemy_frames", "enemy_dist", "robot_type", "max_hp")
+
+    if not isinstance(sensor, dict):
+        raise ValueError("sensor must be a dictionary")
+
+    if any(key not in sensor for key in required):
+        raise ValueError("sensor is missing required fields")
+
+    if not isinstance(state, SentryState):
+        raise ValueError("state must be a SentryState member")
+
+    frames = sensor["enemy_frames"]
+    if not isinstance(frames, (tuple, list)):
+        raise ValueError("enemy_frames must be a tuple or list")
+
+    if not 1 <= len(frames) <= 6:
+        raise ValueError("enemy_frames length must be between 1 and 6")
+
+    frames = tuple(bool(frame) for frame in frames)
+
+    enemy_dist = sensor["enemy_dist"]
+    if type(enemy_dist) is not int or enemy_dist < 0:
+        enemy_dist = float("inf")
+
+    robot_type = sensor["robot_type"]
+    if robot_type not in ("INFANTRY", "HERO"):
+        robot_type = "INFANTRY"
+
+    try:
+        max_hp = int(sensor["max_hp"])
+    except (TypeError, ValueError, OverflowError):
+        max_hp = 100
+
+    if max_hp <= 0:
+        max_hp = 100
+
+    try:
+        normalized_hp = int(hp)
+    except (TypeError, ValueError, OverflowError):
+        normalized_hp = 0
+
+    hp_pct = hp_ratio(normalized_hp, max_hp)
+    visible = frames[-1]
+
+    # R1: Low health overrides every other rule.
+    if hp_pct <= 30:
+        return ("RETREAT", SentryState.RETREAT)
+
+    # R2: Remain in retreat until health reaches the assumed threshold.
+    if state == SentryState.RETREAT:
+        if hp_pct >= 60:
+            return ("RETURN", SentryState.RETURN)
+        return ("RETREAT", SentryState.RETREAT)
+
+    # R3: RETURN is a one-frame transition.
+    if state == SentryState.RETURN:
+        return ("MOVE_BASE", SentryState.PATROL)
+
+    # R4: Engage a currently visible enemy.
+    if state == SentryState.ENGAGE and visible:
+        if enemy_dist <= 3:
+            return ("SHOOT", SentryState.ENGAGE)
+        if robot_type == "HERO":
+            return ("MOVE_RIGHT", SentryState.ENGAGE)
+        return ("MOVE_LEFT", SentryState.ENGAGE)
+
+    # R5: Two trailing false frames mean sustained loss.
+    if state == SentryState.ENGAGE:
+        sustained_loss = len(frames) >= 2 and not any(frames[-2:])
+        if sustained_loss:
+            return ("SCAN", SentryState.SUSPECT)
+        return ("HOLD_FIRE", SentryState.ENGAGE)
+
+    # R6: Confirm an enemy using two consecutive visible frames.
+    if visible:
+        confirmed = len(frames) >= 2 and frames[-2]
+        if not confirmed:
+            return ("SCAN", SentryState.SUSPECT)
+
+        if enemy_dist <= 3:
+            return ("SHOOT", SentryState.ENGAGE)
+        if robot_type == "HERO":
+            return ("MOVE_RIGHT", SentryState.ENGAGE)
+        return ("MOVE_LEFT", SentryState.ENGAGE)
+
+    # R7: Default behavior without a visible enemy.
+    if state == SentryState.PATROL:
+        return ("PATROL_MOVE", SentryState.PATROL)
+
+    return ("SCAN", SentryState.SUSPECT)
 
 
 # ---------------------------------------------------------------------------
