@@ -37,6 +37,8 @@ class Facing(Enum):
 def hp_ratio(hp, max_hp):
     if max_hp <= 0:
         return 0
+    if isinstance(hp, int) and isinstance(max_hp, int):
+        return max(0, min(100, hp * 100 // max_hp))
     return max(0, min(100, int(hp * 100 / max_hp)))
 
 
