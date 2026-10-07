@@ -57,16 +57,101 @@ def status_report(name, robot_type, hp, max_hp, battery):
 
 # ---------------------------------------------------------------------------
 # Q2 战斗日志分析（题面 Q2·多源日志解析与统计）
-# ---------------------------------------------------------------------------
 def analyze_damage_log(lines):
-    """TODO(Q2)：解析混合格式伤害日志，返回固定契约的统计 dict；
-    行格式、去重与统计口径见题面 Q2 规范。"""
-    raise NotImplementedError("Q2 analyze_damage_log：题面 Q2·多源日志解析与统计")
+    import json
+    import re
 
+    by_armor = {"front": 0, "left": 0, "right": 0}
+    armor_map = {"F": "front", "L": "left", "R": "right"}
+    seen_ids = []
+    event_count = 0
+
+    for line in lines:
+        if not isinstance(line, str):
+            continue
+
+        text = line.strip()
+        if not text or text.startswith("#"):
+            continue
+
+        events = []
+
+        if text.startswith("{"):
+            try:
+                record = json.loads(text)
+            except (ValueError, RecursionError):
+                continue
+
+            if not isinstance(record, dict):
+                continue
+
+            armor = record.get("armor")
+            damage = record.get("damage")
+
+            if not isinstance(armor, str) or armor not in by_armor:
+                continue
+
+            # Reject booleans, floats, strings, and nonpositive integers.
+            if type(damage) is not int or damage <= 0:
+                continue
+
+            if "id" in record:
+                record_id = record["id"]
+                if record_id in seen_ids:
+                    continue
+                seen_ids.append(record_id)
+
+            events.append((armor, damage))
+        else:
+            valid = True
+
+            for segment in text.split(","):
+                match = re.fullmatch(
+                    r"([FLR]):\s*([0-9]+)", segment.strip()
+                )
+                if match is None:
+                    valid = False
+                    break
+
+                try:
+                    damage = int(match.group(2))
+                except ValueError:
+                    valid = False
+                    break
+
+                if damage <= 0:
+                    valid = False
+                    break
+
+                armor = armor_map[match.group(1)]
+                events.append((armor, damage))
+
+            # Discard the entire line if any segment is invalid.
+            if not valid:
+                continue
+
+        for armor, damage in events:
+            by_armor[armor] += damage
+            event_count += 1
+
+    total = sum(by_armor.values())
+    most_hit = (
+        max(by_armor, key=by_armor.get) if event_count else None
+    )
+    avg = round(total / event_count, 2) if event_count else 0.0
+
+    return {
+        "total": total,
+        "by_armor": by_armor,
+        "most_hit": most_hit,
+        "avg": avg,
+    }
 
 # ---------------------------------------------------------------------------
 # Q3 SentryGrid（题面 Q3·载体物理规则）
 # ---------------------------------------------------------------------------
+
+
 class SentryGrid:
     """哨兵仿真载体（构造与只读属性已提供；四个 TODO 方法由你实现）。"""
 
