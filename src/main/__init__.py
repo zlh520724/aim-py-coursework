@@ -465,6 +465,7 @@ def run_patrol(grid, max_steps=500):
     initial_collisions = grid.collision_count
     visited = {grid.current_pos}
     planned_path = deque()
+    unreachable = False
 
     while (
         steps < max_steps
@@ -494,14 +495,19 @@ def run_patrol(grid, max_steps=500):
                 and distance(next_pos, target) < distance(pos, target)
             )
 
-            if not greedy_valid:
+            if not greedy_valid and not unreachable:
                 planned_path = escape_path(pos, target)
+                unreachable = not planned_path
                 if planned_path:
                     direction = planned_path.popleft()
 
         # Act: align the heading, then attempt one forward move.
-        while grid.facing != direction:
-            grid.turn_right()
+        dx, dy = grid.facing.delta
+        if direction.delta == (-dy, dx):
+            grid.turn_left()
+        else:
+            while grid.facing != direction:
+                grid.turn_right()
 
         grid.move_forward()
         steps += 1
