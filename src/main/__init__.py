@@ -296,29 +296,18 @@ def next_step_toward(pos, target, obstacles, current_facing=Facing.UP):
 
     horizontal = Facing.RIGHT if dx > 0 else Facing.LEFT
     vertical = Facing.UP if dy > 0 else Facing.DOWN
+    candidates = []
+    if dx:
+        candidates.append((abs(dx), horizontal))
+    if dy:
+        candidates.append((abs(dy), vertical))
 
-    if abs(dx) >= abs(dy):
-        directions = (horizontal, vertical)
-    else:
-        directions = (vertical, horizontal)
-
-    current_distance = abs(dx) + abs(dy)
-
-    for direction in directions:
+    # Stable sorting preserves horizontal priority when differences tie.
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    for _, direction in candidates:
         step_x, step_y = direction.delta
-        next_pos = (x + step_x, y + step_y)
-
-        if next_pos in obstacles:
-            continue
-
-        next_distance = (
-            abs(target_x - next_pos[0])
-            + abs(target_y - next_pos[1])
-        )
-
-        if next_distance < current_distance:
+        if (x + step_x, y + step_y) not in obstacles:
             return direction
-
     return current_facing
 
 
