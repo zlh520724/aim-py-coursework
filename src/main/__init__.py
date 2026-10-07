@@ -65,7 +65,9 @@ def analyze_damage_log(lines):
 
     by_armor = {"front": 0, "left": 0, "right": 0}
     armor_map = {"F": "front", "L": "left", "R": "right"}
-    seen_ids = []
+    seen_ids = set()
+    unhashable_ids = []
+    sensor_pattern = re.compile(r"([FLR]):\s*([0-9]+)")
     event_count = 0
 
     for line in lines:
@@ -99,18 +101,21 @@ def analyze_damage_log(lines):
 
             if "id" in record:
                 record_id = record["id"]
-                if record_id in seen_ids:
-                    continue
-                seen_ids.append(record_id)
+                try:
+                    if record_id in seen_ids:
+                        continue
+                    seen_ids.add(record_id)
+                except TypeError:
+                    if record_id in unhashable_ids:
+                        continue
+                    unhashable_ids.append(record_id)
 
             events.append((armor, damage))
         else:
             valid = True
 
             for segment in text.split(","):
-                match = re.fullmatch(
-                    r"([FLR]):\s*([0-9]+)", segment.strip()
-                )
+                match = sensor_pattern.fullmatch(segment.strip())
                 if match is None:
                     valid = False
                     break
