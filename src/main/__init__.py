@@ -425,14 +425,115 @@ def decide(sensor, state, hp, heat):
 # Q6 巡逻任务（题面 Q6·巡逻契约与验收阈值）
 # ---------------------------------------------------------------------------
 def run_patrol(grid, max_steps=500):
-    """TODO(Q6)：sense → decide → act 主循环；
-    循环结构、终止条件、脱困自由度与统计返回契约见题面 Q6 规范。"""
-    raise NotImplementedError("Q6 run_patrol：题面 Q6·主循环与统计契约")
+    from collections import deque
+
+    directions = (
+        Facing.UP,
+        Facing.RIGHT,
+        Facing.DOWN,
+        Facing.LEFT,
+    )
+
+    def distance(pos, target):
+        return abs(pos[0] - target[0]) + abs(pos[1] - target[1])
+
+    def escape_path(start, target):
+        queue = deque([start])
+        previous = {start: None}
+
+        while queue:
+            pos = queue.popleft()
+
+            if pos == target:
+                path = []
+                while previous[pos] is not None:
+                    parent, direction = previous[pos]
+                    path.append(direction)
+                    pos = parent
+                path.reverse()
+                return deque(path)
+
+            for direction in directions:
+                dx, dy = direction.delta
+                next_pos = (pos[0] + dx, pos[1] + dy)
+
+                if next_pos in previous:
+                    continue
+                if grid.is_blocked(*next_pos):
+                    continue
+
+                previous[next_pos] = (pos, direction)
+                queue.append(next_pos)
+
+        return deque()
+
+    steps = 0
+    initial_collisions = grid.collision_count
+    visited = {grid.current_pos}
+    planned_path = deque()
+
+    while (
+        steps < max_steps
+        and grid.fuel > 0
+        and not grid.found_enemy
+    ):
+        # Sense.
+        pos = grid.current_pos
+        target = grid.enemy_pos
+
+        # Decide: try Q4 first.
+        direction = next_step_toward(
+            pos,
+            target,
+            grid.obstacles,
+            grid.facing,
+        )
+
+        if planned_path:
+            direction = planned_path.popleft()
+        else:
+            dx, dy = direction.delta
+            next_pos = (pos[0] + dx, pos[1] + dy)
+
+            greedy_valid = (
+                not grid.is_blocked(*next_pos)
+                and distance(next_pos, target) < distance(pos, target)
+            )
+
+            if not greedy_valid:
+                planned_path = escape_path(pos, target)
+                if planned_path:
+                    direction = planned_path.popleft()
+
+        # Act: align the heading, then attempt one forward move.
+        while grid.facing != direction:
+            grid.turn_right()
+
+        grid.move_forward()
+        steps += 1
+        visited.add(grid.current_pos)
+
+    success = bool(grid.found_enemy)
+
+    return {
+        "steps": steps,
+        "collisions": grid.collision_count - initial_collisions,
+        "visited_count": len(visited),
+        "found_enemy": success,
+        "success": success,
+    }
 
 
 def report_to_json(stats):
-    """TODO(Q6)：把 stats 序列化为确定性的 JSON 字符串，见题面 Q6 规范。"""
-    raise NotImplementedError("Q6 report_to_json：题面 Q6·报告序列化")
+    import json
+
+    return json.dumps(
+        stats,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
 
 
 # ---------------------------------------------------------------------------
